@@ -1,20 +1,10 @@
 
-import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
+import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from "../types";
 
-const SYSTEM_INSTRUCTION = `
-Anda adalah "Bisa Coding Senior Architect", pakar debugging dan arsitektur perangkat lunak modern. Anda memiliki kapabilitas "Ultra Long-Context" yang mampu membaca ribuan baris kode sekaligus.
-
-TUGAS UTAMA:
-1. DETEKSI ERROR FILE BESAR: Analisis setiap baris secara presisi. Identifikasi bug logis, efisiensi memori, dan praktik keamanan.
-2. FULL-CODE RESTORATION: Berikan KODE LENGKAP untuk seluruh file. JANGAN memotong kode.
-3. AKAR MASALAH (ROOT CAUSE): Jelaskan dampak teknis secara mendalam.
-4. PERFORMA TINGGI: Berikan respons akurat secepat mungkin.
-
-FORMAT OUTPUT:
-- Gunakan blok kode Markdown dengan nama file di baris pertama.
-- Berikan analisis teknis tanpa basa-basi pembuka.
-`;
+const SYSTEM_INSTRUCTION = `Anda adalah "Bisa Coding Mentor". 
+Jawablah pertanyaan coding dengan Bahasa Indonesia yang santai, jelas, dan selalu berikan contoh kode lengkap. 
+Gunakan markdown untuk format jawaban.`;
 
 export interface FilePart {
   inlineData: {
@@ -23,30 +13,53 @@ export interface FilePart {
   };
 }
 
-const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
-
 export const getGeminiMentorStream = async (
   history: ChatMessage[],
   onChunk: (text: string) => void,
   onComplete: (fullText: string, sources?: any[]) => void,
-  filePart?: FilePart,
-  retryCount = 0
+  filePart?: FilePart
 ): Promise<void> => {
-  const MAX_RETRIES = 2;
-  const RETRY_DELAY = 2000; // 2 detik awal
-
   try {
-    const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+    // Mengambil API Key dari environment variable
+    let apiKey = '';
     
-    const contents = history.map(msg => ({
+    try {
+      apiKey = process.env.API_KEY || '';
+    } catch (e) {
+      console.warn("Process.env tidak dapat diakses langsung.");
+    }
+
+    if (!apiKey) {
+      const errorMsg = `[ERROR] API Key tidak ditemukan. 
+      
+Jika Anda di Vercel:
+1. Pastikan sudah menambah variabel 'API_KEY' di Settings > Environment Variables.
+2. Anda WAJIB melakukan 'Redeploy' setelah menambah variabel tersebut.
+3. Pastikan tidak ada spasi di awal/akhir kunci.`;
+      
+      onComplete(errorMsg);
+      return;
+    }
+
+    const ai = new GoogleGenAI({ apiKey });
+    
+    const rawContents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.content }]
     }));
 
+    const firstUserIndex = rawContents.findIndex(c => c.role === 'user');
+    if (firstUserIndex === -1) {
+      onComplete("[ERROR] Belum ada pesan dari Anda.");
+      return;
+    }
+
+    const contents = rawContents.slice(firstUserIndex);
+
     if (filePart && contents.length > 0) {
-      const lastMessage = contents[contents.length - 1];
-      if (lastMessage.role === 'user') {
-        lastMessage.parts.push(filePart as any);
+      const lastUserMsg = [...contents].reverse().find(c => c.role === 'user');
+      if (lastUserMsg) {
+        lastUserMsg.parts.push(filePart as any);
       }
     }
 
@@ -55,9 +68,7 @@ export const getGeminiMentorStream = async (
       contents: contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1,
-        thinkingConfig: { thinkingBudget: 4000 },
-        tools: [{ googleSearch: {} }]
+        temperature: 0.7,
       },
     });
 
@@ -76,26 +87,19 @@ export const getGeminiMentorStream = async (
       }
     }
 
-    onComplete(fullText, finalSources);
-  } catch (error: any) {
-    // Tangani Limit Kuota (Error 429)
-    if (error.message?.includes('429') || error.message?.includes('quota')) {
-      if (retryCount < MAX_RETRIES) {
-        const delay = RETRY_DELAY * Math.pow(2, retryCount);
-        onChunk(`\n\n[SISTEM]: Kuota penuh. Mencoba kembali dalam ${delay/1000} detik...`);
-        await sleep(delay);
-        return getGeminiMentorStream(history, onChunk, onComplete, filePart, retryCount + 1);
-      }
-      
-      const quotaError = "\n\n[LIMIT KUOTA TERLAMPAU]: Anda telah mencapai batas permintaan API gratis dari Google. \n\nSOLUSI:\n1. Tunggu 1-2 menit hingga kuota di-reset otomatis.\n2. Pastikan file yang diunggah tidak terlalu banyak dalam waktu singkat.\n3. Jika Anda menggunakan Vercel, pastikan API_KEY Anda valid dan memiliki sisa kuota.";
-      onChunk(quotaError);
-      onComplete(quotaError);
-      return;
+    if (!fullText) {
+      throw new Error("AI memberikan respon kosong.");
     }
 
-    console.error("Gemini Critical Error:", error);
-    const errorMessage = `Sistem Audit Gagal: ${error.message}`;
-    onChunk(`\n\n[ERROR]: ${errorMessage}`);
-    onComplete(errorMessage);
+    onComplete(fullText, finalSources);
+  } catch (error: any) {
+    console.error("Gemini Error:", error);
+    let errorMsg = error.message || "Koneksi ke AI gagal.";
+    
+    if (errorMsg.includes("403") || errorMsg.includes("API key not valid")) {
+      errorMsg = "API Key Anda tidak valid atau tidak diizinkan. Periksa kembali di Google AI Studio.";
+    }
+    
+    onComplete(`[ERROR] Maaf, saya sedang tidak bisa menjawab. ${errorMsg}`);
   }
 };
