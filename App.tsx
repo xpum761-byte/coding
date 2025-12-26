@@ -16,7 +16,7 @@ const COURSES: Course[] = [
 
 const INITIAL_MESSAGE: ChatMessage = {
   role: 'model',
-  content: 'Halo! Saya Senior Architect Bisa Coding. Saya dioptimalkan untuk menganalisis file besar dan struktur arsitektur yang kompleks. Ada tantangan coding atau file panjang yang ingin Anda bedah hari ini?',
+  content: 'Halo! Saya Senior Architect Bisa Coding. Saya dioptimalkan untuk menganalisis codebase besar dan file kode yang sangat panjang. Silakan tempel kode Anda atau lampirkan file yang ingin diaudit.',
   timestamp: Date.now()
 };
 
@@ -28,10 +28,16 @@ const App: React.FC = () => {
 
   useEffect(() => {
     const checkKeyAndLoadData = async () => {
-      try {
-        const selected = await (window as any).aistudio.hasSelectedApiKey();
-        setHasApiKey(selected);
-      } catch (e) {
+      // Cek apakah di lingkungan AI Studio
+      if (typeof (window as any).aistudio !== 'undefined') {
+        try {
+          const selected = await (window as any).aistudio.hasSelectedApiKey();
+          setHasApiKey(selected);
+        } catch (e) {
+          setHasApiKey(true); // Fallback jika terjadi error pada deteksi
+        }
+      } else {
+        // Di Vercel atau environment standar, kita anggap API_KEY sudah ada di environment variables
         setHasApiKey(true);
       }
 
@@ -40,7 +46,7 @@ const App: React.FC = () => {
         try {
           setProjects(JSON.parse(saved));
         } catch (e) {
-          console.error("Gagal memuat riwayat proyek", e);
+          console.error("Gagal memuat riwayat", e);
         }
       }
     };
@@ -52,11 +58,13 @@ const App: React.FC = () => {
   }, [projects]);
 
   const handleSelectKey = async () => {
-    try {
-      await (window as any).aistudio.openSelectKey();
-      setHasApiKey(true);
-    } catch (e) {
-      console.error("Gagal membuka pemilihan key", e);
+    if (typeof (window as any).aistudio !== 'undefined') {
+      try {
+        await (window as any).aistudio.openSelectKey();
+        setHasApiKey(true);
+      } catch (e) {
+        console.error("Gagal membuka pemilihan key", e);
+      }
     }
   };
 
@@ -84,8 +92,8 @@ const App: React.FC = () => {
         if (title.includes('Proyek Baru') || title.includes('Analisis Proyek')) {
           const firstUserMsg = messages.find(m => m.role === 'user');
           if (firstUserMsg) {
-            title = firstUserMsg.content.split('\n')[0].slice(0, 40).trim();
-            if (firstUserMsg.content.length > 40) title += '...';
+            title = firstUserMsg.content.split('\n')[0].slice(0, 50).trim();
+            if (firstUserMsg.content.length > 50) title += '...';
           }
         }
         return { ...p, messages, title, updatedAt: Date.now() };
@@ -116,16 +124,19 @@ const App: React.FC = () => {
         <div className="max-w-md w-full space-y-10 bg-slate-900 border border-slate-800 p-12 rounded-[48px] shadow-2xl animate-slide-in">
           <div className="relative w-24 h-24 mx-auto">
             <div className="absolute inset-0 bg-blue-600/20 blur-2xl rounded-full"></div>
-            <div className="relative w-full h-full bg-slate-800 rounded-3xl flex items-center justify-center text-5xl shadow-inner border border-slate-700">🔐</div>
+            <div className="relative w-full h-full bg-slate-800 rounded-3xl flex items-center justify-center text-5xl border border-slate-700">🔐</div>
           </div>
           <div className="space-y-4">
             <h1 className="text-3xl font-black text-white tracking-tight">Otentikasi Aman</h1>
             <p className="text-slate-400 text-sm leading-relaxed">
-              Hubungkan API Key untuk mengaktifkan <strong>Senior Architect AI</strong> dengan kapabilitas long-context.
+              Silakan hubungkan API Key Anda melalui Google AI Studio untuk mengaktifkan fitur analisis.
             </p>
           </div>
-          <button onClick={handleSelectKey} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-600/30">
-            Hubungkan Sekarang
+          <button 
+            onClick={handleSelectKey} 
+            className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-600/30 active:scale-95"
+          >
+            Hubungkan API Key
           </button>
         </div>
       </div>
@@ -138,105 +149,94 @@ const App: React.FC = () => {
         return (
           <div className="space-y-24 py-16">
             <section className="text-center space-y-10 px-4">
-              <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-5 py-2 rounded-full text-[10px] font-black border border-emerald-500/20 mb-4 tracking-[0.2em] uppercase animate-fade-in">
+              <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-5 py-2 rounded-full text-[10px] font-black border border-emerald-500/20 mb-4 tracking-[0.2em] uppercase">
                 <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
                 Node Arsitektur Terverifikasi
               </div>
               <h1 className="text-6xl md:text-9xl font-black tracking-tighter leading-none text-white">
                 Bisa <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-indigo-400 to-purple-500">Coding.</span>
               </h1>
-              <p className="text-lg md:text-2xl text-slate-400 max-w-3xl mx-auto leading-relaxed font-medium">
-                Mentor AI Performa Tinggi. Analisis file besar, arsitektur kompleks, dan solusi Full-Code instan.
+              <p className="text-lg md:text-2xl text-slate-400 max-w-4xl mx-auto leading-relaxed font-medium">
+                Sistem Analisis Kode Performa Tinggi untuk Engineer Modern.
               </p>
               <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
-                <button onClick={() => setCurrentSection(AppSection.COURSES)} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-12 py-6 rounded-2xl font-black text-xl shadow-2xl transition-all hover:-translate-y-2">
+                <button onClick={() => setCurrentSection(AppSection.COURSES)} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-12 py-6 rounded-2xl font-black text-xl shadow-2xl transition-all hover:-translate-y-1">
                   Jelajahi Kursus
                 </button>
                 <button onClick={createNewProject} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-12 py-6 rounded-2xl font-black text-xl transition-all border border-slate-800 hover:border-blue-500/50 flex items-center justify-center gap-4">
-                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/></svg>
-                  Tanya Mentor
+                  Tanya Mentor AI
                 </button>
               </div>
             </section>
 
-            <section className="max-w-7xl mx-auto px-4 space-y-12">
+            <section className="max-w-[1600px] mx-auto px-6 space-y-12">
               <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-900 pb-10">
                 <div className="space-y-2">
                   <h2 className="text-4xl font-black text-white flex items-center gap-4">
-                    <div className="w-4 h-12 bg-blue-600 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.5)]"></div>
-                    Workspace Analisis
+                    <div className="w-4 h-12 bg-blue-600 rounded-full"></div>
+                    Workspace Utama
                   </h2>
-                  <p className="text-slate-500 font-semibold tracking-wide">Kelola sesi konsultasi arsitektur Anda.</p>
+                  <p className="text-slate-500 font-semibold tracking-wide">Analisis codebase Anda dalam skala besar.</p>
                 </div>
                 {projects.length > 0 && (
                    <div className="flex items-center gap-4">
                      <button 
                        onClick={deleteAllProjects}
-                       className="text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-400 bg-rose-500/5 px-4 py-2 rounded-xl border border-rose-500/10 transition-all hover:bg-rose-500/10"
+                       className="text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-white bg-rose-500/5 px-4 py-2 rounded-xl border border-rose-500/10 transition-all hover:bg-rose-500"
                      >
                        Hapus Semua Riwayat
                      </button>
-                     <div className="flex items-center gap-4 bg-slate-900/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-800 shadow-xl">
-                       <span className="text-blue-500 font-black text-lg">{projects.length}</span>
-                       <span className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Sesi Aktif</span>
+                     <div className="bg-slate-900/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-800 flex items-center gap-3">
+                       <span className="text-blue-500 font-black text-xl">{projects.length}</span>
+                       <span className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Sesi</span>
                      </div>
                    </div>
                 )}
               </div>
 
               {projects.length > 0 ? (
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-8">
                   <div 
                     onClick={createNewProject}
-                    className="group border-2 border-dashed border-slate-800 rounded-[40px] p-10 flex flex-col items-center justify-center text-center hover:border-blue-500/50 hover:bg-blue-600/5 transition-all cursor-pointer min-h-[280px] space-y-6"
+                    className="group border-2 border-dashed border-slate-800 rounded-[40px] p-10 flex flex-col items-center justify-center text-center hover:border-blue-500/50 hover:bg-blue-600/5 transition-all cursor-pointer min-h-[300px]"
                   >
-                    <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center text-slate-700 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 transition-all shadow-xl">
-                      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center text-slate-700 group-hover:bg-blue-600 group-hover:text-white transition-all mb-6">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
                     </div>
-                    <div className="space-y-1">
-                      <h3 className="font-black text-xl text-slate-500 group-hover:text-white">Mulai Sesi Baru</h3>
-                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 group-hover:text-blue-400">High Performance Analysis</p>
-                    </div>
+                    <h3 className="font-black text-xl text-slate-500 group-hover:text-white">Mulai Sesi Baru</h3>
                   </div>
 
                   {projects.map((project) => (
                     <div 
                       key={project.id}
                       onClick={() => openProject(project.id)}
-                      className="bg-slate-900/50 border border-slate-800/80 rounded-[40px] p-8 hover:border-blue-500 transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer group relative overflow-hidden flex flex-col justify-between min-h-[280px]"
+                      className="bg-slate-900/50 border border-slate-800/80 rounded-[40px] p-8 hover:border-blue-500 transition-all hover:shadow-2xl cursor-pointer group flex flex-col justify-between min-h-[300px]"
                     >
-                      <div className="relative z-10 flex flex-col h-full">
-                        <div className="flex items-start justify-between mb-8">
-                          <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-2xl border border-slate-700/50">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                      <div className="space-y-6">
+                        <div className="flex justify-between items-start">
+                          <div className="w-14 h-14 bg-slate-800 rounded-2xl flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-xl">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
                           </div>
-                          <button 
-                            onClick={(e) => deleteProject(e, project.id)}
-                            className="p-3 text-slate-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-xl"
-                          >
-                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                          <button onClick={(e) => deleteProject(e, project.id)} className="p-2 text-slate-700 hover:text-red-500 opacity-0 group-hover:opacity-100 transition-all">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
                           </button>
                         </div>
-                        <div className="flex-1 space-y-3">
-                          <h3 className="text-2xl font-black text-white line-clamp-2 leading-tight group-hover:text-blue-400 transition-colors">{project.title}</h3>
-                          <p className="text-xs text-slate-500 font-medium italic line-clamp-2 opacity-80">"{project.messages[project.messages.length - 1]?.content.slice(0, 80) || "Belum ada riwayat."}"</p>
-                        </div>
-                        <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
-                          <div className="flex items-center gap-2 text-[10px] font-black text-slate-600 uppercase tracking-widest">
-                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
-                            {new Date(project.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
-                          </div>
-                          <div className="text-blue-500 font-black text-xs flex items-center gap-2 group-hover:translate-x-1 transition-transform">Lanjutkan</div>
-                        </div>
+                        <h3 className="text-xl font-black text-white line-clamp-2 leading-tight group-hover:text-blue-400 transition-colors">{project.title}</h3>
+                      </div>
+                      <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
+                        <span className="text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                          {new Date(project.updatedAt).toLocaleDateString('id-ID')}
+                        </span>
+                        <span className="text-blue-500 font-black text-xs">Lanjutkan →</span>
                       </div>
                     </div>
                   ))}
                 </div>
               ) : (
-                <div className="py-24 text-center bg-slate-900/20 rounded-[64px] border border-slate-900/50">
-                  <div className="text-8xl mb-8 animate-bounce">📂</div>
-                  <h3 className="text-3xl font-black text-white mb-4">Belum Ada Sesi Tersimpan</h3>
-                  <button onClick={createNewProject} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-2xl">Mulai Konsultasi</button>
+                <div className="py-32 text-center bg-slate-900/20 rounded-[64px] border border-slate-900/50">
+                  <div className="text-8xl mb-10">🚀</div>
+                  <h3 className="text-3xl font-black text-white mb-6">Siap Menganalisis Codebase Anda?</h3>
+                  <button onClick={createNewProject} className="bg-blue-600 hover:bg-blue-700 text-white px-12 py-5 rounded-2xl font-black text-xl">Mulai Sekarang</button>
                 </div>
               )}
             </section>
@@ -245,12 +245,12 @@ const App: React.FC = () => {
 
       case AppSection.COURSES:
         return (
-          <div className="max-w-7xl mx-auto px-4 py-20 animate-slide-in">
+          <div className="max-w-[1600px] mx-auto px-6 py-20 animate-slide-in">
             <div className="text-center mb-20 space-y-4">
-              <h2 className="text-6xl font-black text-white tracking-tighter">Kurikulum Masa Depan</h2>
-              <p className="text-slate-400 max-w-2xl mx-auto text-lg font-medium">Dirancang untuk mencetak engineering yang handal di industri.</p>
+              <h2 className="text-6xl font-black text-white tracking-tighter">Akademi Engineering</h2>
+              <p className="text-slate-400 max-w-2xl mx-auto text-lg font-medium">Kurikulum mendalam untuk mencetak pengembang kelas atas.</p>
             </div>
-            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4 gap-10">
               {COURSES.map(course => <CourseCard key={course.id} course={course} />)}
             </div>
           </div>
@@ -259,7 +259,7 @@ const App: React.FC = () => {
       case AppSection.MENTOR:
         const activeProject = projects.find(p => p.id === activeProjectId);
         return (
-          <div className="h-[calc(100vh-80px)] w-full p-4 md:p-8 bg-slate-950 flex justify-center overflow-hidden">
+          <div className="h-[calc(100vh-80px)] w-full p-4 md:p-10 bg-slate-950 flex justify-center overflow-hidden">
             {activeProject ? (
               <MentorChat 
                 activeProject={activeProject} 
@@ -271,7 +271,7 @@ const App: React.FC = () => {
               <div className="h-full w-full flex flex-col items-center justify-center text-center p-12 bg-slate-900/50 border border-slate-800 rounded-[48px] max-w-2xl">
                 <div className="text-8xl mb-10">🤖</div>
                 <h3 className="text-3xl font-black text-white mb-6">Sesi Berakhir</h3>
-                <button onClick={() => setCurrentSection(AppSection.HOME)} className="bg-blue-600 text-white px-12 py-5 rounded-2xl font-black text-lg">Kembali ke Dashboard</button>
+                <button onClick={() => setCurrentSection(AppSection.HOME)} className="bg-blue-600 text-white px-12 py-5 rounded-2xl font-black text-lg">Ke Dashboard</button>
               </div>
             )}
           </div>
@@ -286,12 +286,12 @@ const App: React.FC = () => {
       <Navbar currentSection={currentSection} setSection={setCurrentSection} />
       <main className="flex-1">{renderSection()}</main>
       <footer className="border-t border-slate-900/50 py-16 bg-slate-950">
-        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-10">
+        <div className="max-w-[1600px] mx-auto px-6 flex flex-col md:flex-row justify-between items-center gap-10">
           <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setCurrentSection(AppSection.HOME)}>
              <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-black text-xl text-white shadow-xl">B</div>
              <span className="font-black text-2xl tracking-tighter">Bisa Coding</span>
           </div>
-          <p className="text-slate-700 text-[10px] font-black uppercase tracking-[0.3em] text-center md:text-left">© 2024 Bisa Coding Architecture Platform</p>
+          <p className="text-slate-700 text-[10px] font-black uppercase tracking-[0.3em]">© 2024 Bisa Coding • Senior Architecture Platform</p>
         </div>
       </footer>
     </div>
