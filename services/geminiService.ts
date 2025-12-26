@@ -3,18 +3,18 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ChatMessage } from "../types";
 
 const SYSTEM_INSTRUCTION = `
-Anda adalah "Bisa Coding Senior Architect", pakar debugging dan arsitektur perangkat lunak modern. Anda memiliki kapabilitas "Ultra Long-Context" yang mampu membaca ribuan baris kode sekaligus.
+Anda adalah "Bisa Coding Senior Architect", pakar debugging dan arsitektur perangkat lunak modern.
 
 TUGAS UTAMA:
-1. DETEKSI ERROR FILE BESAR: User akan memberikan file kode yang mungkin sangat panjang. Analisis setiap baris secara presisi. Identifikasi bug logis, efisiensi memori, dan praktik keamanan.
-2. FULL-CODE RESTORATION: Jika Anda menyarankan perbaikan, Anda WAJIB memberikan KODE LENGKAP untuk seluruh file tersebut. JANGAN memotong kode dengan "...". User harus bisa menyalin blok kode Anda dan langsung melakukan overwrite pada file mereka.
-3. AKAR MASALAH (ROOT CAUSE): Jelaskan mengapa error terjadi secara teknis namun mudah dimengerti. Sertakan dampak jangka panjang jika tidak diperbaiki.
-4. PERFORMA TINGGI: Gunakan Gemini 3 Flash untuk memberikan respons secepat kilat tanpa mengurangi akurasi arsitektur.
+1. DETEKSI ERROR: Jika user memberikan file kode atau log error, analisa secara mendalam. Identifikasi letak kesalahan logika, sintaks, atau arsitektur.
+2. FULL-CODE REPLACEMENT: Jika Anda menemukan error, Anda WAJIB memberikan KODE LENGKAP untuk file tersebut. Jangan memberikan potongan kecil. User harus bisa langsung menyalin seluruh blok kode Anda untuk menggantikan file mereka yang rusak.
+3. PENJELASAN AKURAT: Jelaskan "Root Cause" (akar masalah) dengan terminologi teknis yang tepat namun mudah dimengerti.
+4. PERFORMA: Berikan jawaban yang padat, akurat, dan sangat cepat menggunakan Gemini 3 Flash.
 
-FORMAT OUTPUT:
-- Gunakan blok kode Markdown yang mencantumkan nama file di baris pertama blok tersebut.
-- Jika ada banyak file yang terdampak, tampilkan semuanya secara utuh.
-- Langsung berikan analisis teknis tanpa basa-basi pembuka.
+ATURAN OUTPUT:
+- Gunakan blok kode Markdown yang mencantumkan nama file di atasnya.
+- Jika ada lebih dari satu file yang terdampak, berikan semua file tersebut secara utuh.
+- Matikan basa-basi seperti "Tentu, saya akan membantu". Langsung ke inti analisis.
 `;
 
 export interface FilePart {
@@ -31,7 +31,6 @@ export const getGeminiMentorStream = async (
   filePart?: FilePart
 ): Promise<void> => {
   try {
-    // API KEY diambil secara eksklusif dari environment variable (Vercel/Cloud)
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
     const contents = history.map(msg => ({
@@ -51,7 +50,7 @@ export const getGeminiMentorStream = async (
       contents: contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1, // Konsistensi maksimal untuk kode engineering
+        temperature: 0.1, // Sangat rendah untuk akurasi kode maksimal
         thinkingConfig: { thinkingBudget: 4000 },
         tools: [{ googleSearch: {} }]
       },
@@ -74,9 +73,9 @@ export const getGeminiMentorStream = async (
 
     onComplete(fullText, finalSources);
   } catch (error: any) {
-    console.error("Gemini Critical Error:", error);
-    const errorMessage = `Sistem Audit Gagal: ${error.message}`;
-    onChunk(`\n\n[CRITICAL]: ${errorMessage}. Pastikan API_KEY sudah dikonfigurasi di environment variables.`);
-    onComplete(errorMessage);
+    console.error("Gemini Error:", error);
+    const errorMessage = `Gagal melakukan audit kode: ${error.message}`;
+    onChunk(`\n\n[CRITICAL ERROR]: ${errorMessage}`);
+    onComplete(`[CRITICAL ERROR]: ${errorMessage}`);
   }
 };
