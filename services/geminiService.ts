@@ -3,18 +3,17 @@ import { GoogleGenAI, GenerateContentResponse } from "@google/genai";
 import { ChatMessage } from "../types";
 
 const SYSTEM_INSTRUCTION = `
-Anda adalah "Bisa Coding Senior Architect", pakar debugging dan arsitektur perangkat lunak modern.
+Anda adalah "Bisa Coding Senior Architect", pakar debugging dan arsitektur perangkat lunak modern. Anda memiliki kapabilitas "Ultra Long-Context" yang mampu membaca ribuan baris kode sekaligus.
 
 TUGAS UTAMA:
-1. DETEKSI ERROR: Jika user memberikan file kode atau log error, analisa secara mendalam. Identifikasi letak kesalahan logika, sintaks, atau arsitektur.
-2. FULL-CODE REPLACEMENT: Jika Anda menemukan error, Anda WAJIB memberikan KODE LENGKAP untuk file tersebut. Jangan memberikan potongan kecil. User harus bisa langsung menyalin seluruh blok kode Anda untuk menggantikan file mereka yang rusak.
-3. PENJELASAN AKURAT: Jelaskan "Root Cause" (akar masalah) dengan terminologi teknis yang tepat namun mudah dimengerti.
-4. PERFORMA: Berikan jawaban yang padat, akurat, dan sangat cepat menggunakan Gemini 3 Flash.
+1. DETEKSI ERROR FILE BESAR: Analisis setiap baris secara presisi. Identifikasi bug logis, efisiensi memori, dan praktik keamanan.
+2. FULL-CODE RESTORATION: Berikan KODE LENGKAP untuk seluruh file. JANGAN memotong kode.
+3. AKAR MASALAH (ROOT CAUSE): Jelaskan dampak teknis secara mendalam.
+4. PERFORMA TINGGI: Berikan respons akurat secepat mungkin.
 
-ATURAN OUTPUT:
-- Gunakan blok kode Markdown yang mencantumkan nama file di atasnya.
-- Jika ada lebih dari satu file yang terdampak, berikan semua file tersebut secara utuh.
-- Matikan basa-basi seperti "Tentu, saya akan membantu". Langsung ke inti analisis.
+FORMAT OUTPUT:
+- Gunakan blok kode Markdown dengan nama file di baris pertama.
+- Berikan analisis teknis tanpa basa-basi pembuka.
 `;
 
 export interface FilePart {
@@ -24,12 +23,18 @@ export interface FilePart {
   };
 }
 
+const sleep = (ms: number) => new Promise(resolve => setTimeout(resolve, ms));
+
 export const getGeminiMentorStream = async (
   history: ChatMessage[],
   onChunk: (text: string) => void,
   onComplete: (fullText: string, sources?: any[]) => void,
-  filePart?: FilePart
+  filePart?: FilePart,
+  retryCount = 0
 ): Promise<void> => {
+  const MAX_RETRIES = 2;
+  const RETRY_DELAY = 2000; // 2 detik awal
+
   try {
     const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
     
@@ -50,7 +55,7 @@ export const getGeminiMentorStream = async (
       contents: contents,
       config: {
         systemInstruction: SYSTEM_INSTRUCTION,
-        temperature: 0.1, // Sangat rendah untuk akurasi kode maksimal
+        temperature: 0.1,
         thinkingConfig: { thinkingBudget: 4000 },
         tools: [{ googleSearch: {} }]
       },
@@ -73,9 +78,24 @@ export const getGeminiMentorStream = async (
 
     onComplete(fullText, finalSources);
   } catch (error: any) {
-    console.error("Gemini Error:", error);
-    const errorMessage = `Gagal melakukan audit kode: ${error.message}`;
-    onChunk(`\n\n[CRITICAL ERROR]: ${errorMessage}`);
-    onComplete(`[CRITICAL ERROR]: ${errorMessage}`);
+    // Tangani Limit Kuota (Error 429)
+    if (error.message?.includes('429') || error.message?.includes('quota')) {
+      if (retryCount < MAX_RETRIES) {
+        const delay = RETRY_DELAY * Math.pow(2, retryCount);
+        onChunk(`\n\n[SISTEM]: Kuota penuh. Mencoba kembali dalam ${delay/1000} detik...`);
+        await sleep(delay);
+        return getGeminiMentorStream(history, onChunk, onComplete, filePart, retryCount + 1);
+      }
+      
+      const quotaError = "\n\n[LIMIT KUOTA TERLAMPAU]: Anda telah mencapai batas permintaan API gratis dari Google. \n\nSOLUSI:\n1. Tunggu 1-2 menit hingga kuota di-reset otomatis.\n2. Pastikan file yang diunggah tidak terlalu banyak dalam waktu singkat.\n3. Jika Anda menggunakan Vercel, pastikan API_KEY Anda valid dan memiliki sisa kuota.";
+      onChunk(quotaError);
+      onComplete(quotaError);
+      return;
+    }
+
+    console.error("Gemini Critical Error:", error);
+    const errorMessage = `Sistem Audit Gagal: ${error.message}`;
+    onChunk(`\n\n[ERROR]: ${errorMessage}`);
+    onComplete(errorMessage);
   }
 };
