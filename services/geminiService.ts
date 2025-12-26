@@ -21,10 +21,10 @@ export const getGeminiMentorStream = async (
 ): Promise<void> => {
   try {
     // Mengambil API Key dari environment variable
-    let apiKey = 'AIzaSyCw9mexb0kfjIPBski69_QdL-ML_F6WScM';
+    let apiKey = '';
     
     try {
-      apiKey = process.env.API_KEY || 'AIzaSyCw9mexb0kfjIPBski69_QdL-ML_F6WScM';
+      apiKey = process.env.API_KEY || '';
     } catch (e) {
       console.warn("Process.env tidak dapat diakses langsung.");
     }
