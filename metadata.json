@@ -1,0 +1,7 @@
+{
+  "name": "Bisa Coding",
+  "description": "Platform pembelajaran pemrograman interaktif bertenaga AI untuk membantu siapa saja menjadi pengembang perangkat lunak handal.",
+  "requestFramePermissions": [
+    "microphone"
+  ]
+}
