@@ -12,6 +12,8 @@ export interface ChatMessage {
   role: 'user' | 'model';
   content: string;
   timestamp: number;
+  // Added optional sources for search/maps grounding
+  sources?: any[];
 }
 
 export interface ChatProject {

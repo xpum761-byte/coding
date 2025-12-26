@@ -1,12 +1,22 @@
 
-import React, { useState, useEffect, useCallback, useRef } from 'react';
+import React, { useState, useEffect } from 'react';
 import Navbar from './components/Navbar';
+import CourseCard from './components/CourseCard';
 import MentorChat from './components/MentorChat';
-import { AppSection, ChatProject, ChatMessage } from './types';
+import { AppSection, Course, ChatProject, ChatMessage } from './types';
+
+const COURSES: Course[] = [
+  { id: '1', title: 'Dasar Pemrograman Web', description: 'Pelajari HTML, CSS, dan dasar JavaScript untuk membangun website pertamamu.', icon: '🌐', level: 'Pemula', tags: ['Web', 'Frontend', 'HTML'] },
+  { id: '2', title: 'React.js Masterclass', description: 'Kuasai library JavaScript terpopuler untuk membangun aplikasi modern berskala besar.', icon: '⚛️', level: 'Menengah', tags: ['React', 'JavaScript', 'UI'] },
+  { id: '3', title: 'Python untuk Data Science', description: 'Analisis data, visualisasi, dan dasar-dasar machine learning menggunakan Python.', icon: '🐍', level: 'Pemula', tags: ['Data', 'Python', 'ML'] },
+  { id: '4', title: 'Node.js & Backend Architecture', description: 'Bangun API yang tangguh dan pelajari manajemen database server-side.', icon: '🚀', level: 'Menengah', tags: ['Backend', 'Node', 'API'] },
+  { id: '5', title: 'Mobile App with Flutter', description: 'Buat aplikasi Android dan iOS dari satu codebase menggunakan framework Dart.', icon: '📱', level: 'Pemula', tags: ['Mobile', 'Flutter', 'Dart'] },
+  { id: '6', title: 'Cloud Computing Essentials', description: 'Pahami infrastruktur cloud AWS, GCP, dan cara deploy aplikasi ke produksi.', icon: '☁️', level: 'Lanjut', tags: ['Cloud', 'DevOps', 'AWS'] }
+];
 
 const INITIAL_MESSAGE: ChatMessage = {
   role: 'model',
-  content: 'Halo! Saya Senior Architect Bisa Coding. Apa yang ingin kita kerjakan hari ini?',
+  content: 'Halo! Saya Senior Architect Bisa Coding. Saya dioptimalkan untuk menganalisis file besar dan struktur arsitektur yang kompleks. Ada tantangan coding atau file panjang yang ingin Anda bedah hari ini?',
   timestamp: Date.now()
 };
 
@@ -14,167 +24,277 @@ const App: React.FC = () => {
   const [currentSection, setCurrentSection] = useState<AppSection>(AppSection.HOME);
   const [projects, setProjects] = useState<ChatProject[]>([]);
   const [activeProjectId, setActiveProjectId] = useState<string | null>(null);
-  const isInitialMount = useRef(true);
+  const [hasApiKey, setHasApiKey] = useState<boolean | null>(null);
 
-  // Load data hanya sekali saat start
   useEffect(() => {
-    try {
+    const checkKeyAndLoadData = async () => {
+      try {
+        const selected = await (window as any).aistudio.hasSelectedApiKey();
+        setHasApiKey(selected);
+      } catch (e) {
+        setHasApiKey(true);
+      }
+
       const saved = localStorage.getItem('bisacoding_projects');
       if (saved) {
-        const parsed = JSON.parse(saved);
-        if (Array.isArray(parsed)) {
-          setProjects(parsed);
+        try {
+          setProjects(JSON.parse(saved));
+        } catch (e) {
+          console.error("Gagal memuat riwayat proyek", e);
         }
       }
-    } catch (e) {
-      console.warn("Gagal memuat riwayat:", e);
-    }
-    // Set mount ke false setelah pembacaan pertama selesai
-    setTimeout(() => { isInitialMount.current = false; }, 100);
+    };
+    checkKeyAndLoadData();
   }, []);
 
-  // Simpan data setiap kali projects berubah, tapi jangan saat mount awal
   useEffect(() => {
-    if (isInitialMount.current) return;
-    
-    try {
-      localStorage.setItem('bisacoding_projects', JSON.stringify(projects));
-    } catch (e) {
-      console.error("Gagal menyimpan riwayat ke storage:", e);
-    }
+    localStorage.setItem('bisacoding_projects', JSON.stringify(projects));
   }, [projects]);
 
+  const handleSelectKey = async () => {
+    try {
+      await (window as any).aistudio.openSelectKey();
+      setHasApiKey(true);
+    } catch (e) {
+      console.error("Gagal membuka pemilihan key", e);
+    }
+  };
+
   const createNewProject = () => {
-    const newId = Date.now().toString();
     const newProject: ChatProject = {
-      id: newId,
-      title: 'Diskusi Baru',
+      id: Date.now().toString(),
+      title: 'Analisis Proyek Baru',
       messages: [INITIAL_MESSAGE],
       updatedAt: Date.now()
     };
-    setProjects(prev => [newProject, ...prev]);
-    setActiveProjectId(newId);
+    setProjects([newProject, ...projects]);
+    setActiveProjectId(newProject.id);
     setCurrentSection(AppSection.MENTOR);
   };
 
-  const deleteProject = (e: React.MouseEvent, id: string) => {
-    e.stopPropagation();
-    e.preventDefault();
-    
-    // Langsung hapus tanpa konfirmasi sesuai permintaan user
-    const updated = projects.filter(p => p.id !== id);
-    setProjects(updated);
-    
-    if (activeProjectId === id) {
-      setActiveProjectId(null);
-      setCurrentSection(AppSection.HOME);
-    }
+  const openProject = (id: string) => {
+    setActiveProjectId(id);
+    setCurrentSection(AppSection.MENTOR);
   };
 
-  const updateProjectMessages = useCallback((projectId: string, messages: ChatMessage[]) => {
+  const updateProjectMessages = (projectId: string, messages: ChatMessage[]) => {
     setProjects(prev => prev.map(p => {
       if (p.id === projectId) {
         let title = p.title;
-        if (title === 'Diskusi Baru' || title.length < 5) {
+        if (title.includes('Proyek Baru') || title.includes('Analisis Proyek')) {
           const firstUserMsg = messages.find(m => m.role === 'user');
           if (firstUserMsg) {
-            title = firstUserMsg.content.slice(0, 30).trim() + (firstUserMsg.content.length > 30 ? '...' : '');
+            title = firstUserMsg.content.split('\n')[0].slice(0, 40).trim();
+            if (firstUserMsg.content.length > 40) title += '...';
           }
         }
         return { ...p, messages, title, updatedAt: Date.now() };
       }
       return p;
     }));
-  }, []);
+  };
 
-  const renderContent = () => {
-    if (currentSection === AppSection.MENTOR && activeProjectId) {
-      const activeProject = projects.find(p => p.id === activeProjectId);
-      if (activeProject) {
-        return (
-          <MentorChat 
-            activeProject={activeProject} 
-            onUpdateProject={updateProjectMessages}
-            onBackToHistory={() => setCurrentSection(AppSection.HOME)}
-            onCreateNew={createNewProject}
-          />
-        );
-      }
+  const deleteProject = (e: React.MouseEvent, id: string) => {
+    e.stopPropagation();
+    if (window.confirm('Hapus sesi ini secara permanen?')) {
+      setProjects(prev => prev.filter(p => p.id !== id));
+      if (activeProjectId === id) setActiveProjectId(null);
     }
+  };
 
+  const deleteAllProjects = () => {
+    if (window.confirm('PERINGATAN: Semua riwayat proyek akan dihapus secara permanen. Lanjutkan?')) {
+      setProjects([]);
+      setActiveProjectId(null);
+      localStorage.removeItem('bisacoding_projects');
+    }
+  };
+
+  if (hasApiKey === false) {
     return (
-      <div className="flex-1 overflow-y-auto pb-10">
-        <div className="max-w-4xl mx-auto px-6 py-12 space-y-12">
-          <header className="text-center space-y-6 animate-in">
-            <h1 className="text-4xl md:text-6xl font-black text-white leading-tight">
-              Bisa Coding <br/>
-              <span className="text-blue-500">Kapan Saja.</span>
-            </h1>
-            <div className="flex flex-col sm:flex-row gap-4 justify-center">
-              <button 
-                onClick={createNewProject} 
-                className="bg-blue-600 hover:bg-blue-700 text-white px-8 py-4 rounded-2xl font-bold shadow-lg shadow-blue-900/20 transition-all active:scale-95"
-              >
-                Tanya Mentor AI
-              </button>
-            </div>
-          </header>
-
-          <section className="space-y-6 animate-in [animation-delay:0.1s]">
-            <div className="flex justify-between items-center border-l-4 border-blue-600 pl-4">
-              <h2 className="text-xl font-bold">Riwayat Diskusi</h2>
-              {projects.length > 0 && (
-                <span className="text-[10px] text-slate-500 font-mono">{projects.length} Sesi</span>
-              )}
-            </div>
-
-            {projects.length === 0 ? (
-              <div className="text-center py-20 border border-dashed border-slate-800 rounded-3xl text-slate-500">
-                <p className="text-sm">Belum ada riwayat percakapan.</p>
-                <button onClick={createNewProject} className="mt-4 text-blue-500 font-bold text-xs hover:underline">Mulai Diskusi Pertama</button>
-              </div>
-            ) : (
-              <div className="grid gap-3">
-                {projects.map(p => (
-                  <div 
-                    key={p.id} 
-                    onClick={() => { setActiveProjectId(p.id); setCurrentSection(AppSection.MENTOR); }} 
-                    className="bg-slate-900/40 border border-slate-800/60 p-4 rounded-2xl hover:border-blue-500/40 hover:bg-slate-900/60 transition-all cursor-pointer flex justify-between items-center group"
-                  >
-                    <div className="flex-1 mr-4 overflow-hidden">
-                      <h3 className="font-bold text-slate-200 text-sm truncate">{p.title}</h3>
-                      <p className="text-[10px] text-slate-500 mt-1 uppercase tracking-widest font-medium">
-                        {new Date(p.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short', hour: '2-digit', minute: '2-digit' })}
-                      </p>
-                    </div>
-                    
-                    <div className="flex items-center gap-1">
-                      <button 
-                        onClick={(e) => deleteProject(e, p.id)}
-                        className="p-2.5 text-slate-600 hover:text-rose-500 hover:bg-rose-500/10 rounded-xl transition-all"
-                        aria-label="Hapus Diskusi"
-                      >
-                        <svg xmlns="http://www.w3.org/2000/svg" width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
-                      </button>
-                      <div className="p-2 text-slate-700 group-hover:text-blue-500 transition-colors">
-                        <svg xmlns="http://www.w3.org/2000/svg" width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3"><path d="m9 18 6-6-6-6"/></svg>
-                      </div>
-                    </div>
-                  </div>
-                ))}
-              </div>
-            )}
-          </section>
+      <div className="min-h-screen bg-slate-950 flex items-center justify-center p-6 text-center">
+        <div className="max-w-md w-full space-y-10 bg-slate-900 border border-slate-800 p-12 rounded-[48px] shadow-2xl animate-slide-in">
+          <div className="relative w-24 h-24 mx-auto">
+            <div className="absolute inset-0 bg-blue-600/20 blur-2xl rounded-full"></div>
+            <div className="relative w-full h-full bg-slate-800 rounded-3xl flex items-center justify-center text-5xl shadow-inner border border-slate-700">🔐</div>
+          </div>
+          <div className="space-y-4">
+            <h1 className="text-3xl font-black text-white tracking-tight">Otentikasi Aman</h1>
+            <p className="text-slate-400 text-sm leading-relaxed">
+              Hubungkan API Key untuk mengaktifkan <strong>Senior Architect AI</strong> dengan kapabilitas long-context.
+            </p>
+          </div>
+          <button onClick={handleSelectKey} className="w-full bg-blue-600 hover:bg-blue-700 text-white py-5 rounded-2xl font-bold text-lg transition-all shadow-xl shadow-blue-600/30">
+            Hubungkan Sekarang
+          </button>
         </div>
       </div>
     );
+  }
+
+  const renderSection = () => {
+    switch (currentSection) {
+      case AppSection.HOME:
+        return (
+          <div className="space-y-24 py-16">
+            <section className="text-center space-y-10 px-4">
+              <div className="inline-flex items-center gap-2 bg-emerald-500/10 text-emerald-400 px-5 py-2 rounded-full text-[10px] font-black border border-emerald-500/20 mb-4 tracking-[0.2em] uppercase animate-fade-in">
+                <span className="w-2 h-2 bg-emerald-500 rounded-full animate-pulse"></span>
+                Node Arsitektur Terverifikasi
+              </div>
+              <h1 className="text-6xl md:text-9xl font-black tracking-tighter leading-none text-white">
+                Bisa <span className="text-transparent bg-clip-text bg-gradient-to-r from-blue-500 via-indigo-400 to-purple-500">Coding.</span>
+              </h1>
+              <p className="text-lg md:text-2xl text-slate-400 max-w-3xl mx-auto leading-relaxed font-medium">
+                Mentor AI Performa Tinggi. Analisis file besar, arsitektur kompleks, dan solusi Full-Code instan.
+              </p>
+              <div className="flex flex-col sm:flex-row items-center justify-center gap-6 pt-4">
+                <button onClick={() => setCurrentSection(AppSection.COURSES)} className="w-full sm:w-auto bg-blue-600 hover:bg-blue-700 text-white px-12 py-6 rounded-2xl font-black text-xl shadow-2xl transition-all hover:-translate-y-2">
+                  Jelajahi Kursus
+                </button>
+                <button onClick={createNewProject} className="w-full sm:w-auto bg-slate-900 hover:bg-slate-800 text-white px-12 py-6 rounded-2xl font-black text-xl transition-all border border-slate-800 hover:border-blue-500/50 flex items-center justify-center gap-4">
+                  <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><path d="M12 2v20M2 12h20"/></svg>
+                  Tanya Mentor
+                </button>
+              </div>
+            </section>
+
+            <section className="max-w-7xl mx-auto px-4 space-y-12">
+              <div className="flex flex-col md:flex-row md:items-end justify-between gap-6 border-b border-slate-900 pb-10">
+                <div className="space-y-2">
+                  <h2 className="text-4xl font-black text-white flex items-center gap-4">
+                    <div className="w-4 h-12 bg-blue-600 rounded-full shadow-[0_0_20px_rgba(37,99,235,0.5)]"></div>
+                    Workspace Analisis
+                  </h2>
+                  <p className="text-slate-500 font-semibold tracking-wide">Kelola sesi konsultasi arsitektur Anda.</p>
+                </div>
+                {projects.length > 0 && (
+                   <div className="flex items-center gap-4">
+                     <button 
+                       onClick={deleteAllProjects}
+                       className="text-[10px] font-black uppercase tracking-widest text-rose-500 hover:text-rose-400 bg-rose-500/5 px-4 py-2 rounded-xl border border-rose-500/10 transition-all hover:bg-rose-500/10"
+                     >
+                       Hapus Semua Riwayat
+                     </button>
+                     <div className="flex items-center gap-4 bg-slate-900/80 backdrop-blur-md px-6 py-3 rounded-2xl border border-slate-800 shadow-xl">
+                       <span className="text-blue-500 font-black text-lg">{projects.length}</span>
+                       <span className="text-slate-500 font-bold uppercase text-[10px] tracking-widest">Sesi Aktif</span>
+                     </div>
+                   </div>
+                )}
+              </div>
+
+              {projects.length > 0 ? (
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-8">
+                  <div 
+                    onClick={createNewProject}
+                    className="group border-2 border-dashed border-slate-800 rounded-[40px] p-10 flex flex-col items-center justify-center text-center hover:border-blue-500/50 hover:bg-blue-600/5 transition-all cursor-pointer min-h-[280px] space-y-6"
+                  >
+                    <div className="w-20 h-20 bg-slate-900 rounded-3xl flex items-center justify-center text-slate-700 group-hover:bg-blue-600 group-hover:text-white group-hover:scale-110 transition-all shadow-xl">
+                      <svg xmlns="http://www.w3.org/2000/svg" width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><line x1="12" y1="5" x2="12" y2="19"></line><line x1="5" y1="12" x2="19" y2="12"></line></svg>
+                    </div>
+                    <div className="space-y-1">
+                      <h3 className="font-black text-xl text-slate-500 group-hover:text-white">Mulai Sesi Baru</h3>
+                      <p className="text-[10px] font-black uppercase tracking-[0.2em] text-slate-700 group-hover:text-blue-400">High Performance Analysis</p>
+                    </div>
+                  </div>
+
+                  {projects.map((project) => (
+                    <div 
+                      key={project.id}
+                      onClick={() => openProject(project.id)}
+                      className="bg-slate-900/50 border border-slate-800/80 rounded-[40px] p-8 hover:border-blue-500 transition-all hover:shadow-[0_20px_50px_rgba(0,0,0,0.5)] cursor-pointer group relative overflow-hidden flex flex-col justify-between min-h-[280px]"
+                    >
+                      <div className="relative z-10 flex flex-col h-full">
+                        <div className="flex items-start justify-between mb-8">
+                          <div className="w-16 h-16 bg-slate-800 rounded-2xl flex items-center justify-center text-blue-500 group-hover:bg-blue-600 group-hover:text-white transition-all shadow-2xl border border-slate-700/50">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z"></path></svg>
+                          </div>
+                          <button 
+                            onClick={(e) => deleteProject(e, project.id)}
+                            className="p-3 text-slate-700 hover:text-red-500 transition-all opacity-0 group-hover:opacity-100 hover:bg-red-500/10 rounded-xl"
+                          >
+                            <svg xmlns="http://www.w3.org/2000/svg" width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><path d="M3 6h18m-2 0v14c0 1-1 2-2 2H7c-1 0-2-1-2-2V6m3 0V4c0-1 1-2 2-2h4c1 0 2 1 2 2v2"></path></svg>
+                          </button>
+                        </div>
+                        <div className="flex-1 space-y-3">
+                          <h3 className="text-2xl font-black text-white line-clamp-2 leading-tight group-hover:text-blue-400 transition-colors">{project.title}</h3>
+                          <p className="text-xs text-slate-500 font-medium italic line-clamp-2 opacity-80">"{project.messages[project.messages.length - 1]?.content.slice(0, 80) || "Belum ada riwayat."}"</p>
+                        </div>
+                        <div className="mt-8 pt-6 border-t border-slate-800 flex items-center justify-between">
+                          <div className="flex items-center gap-2 text-[10px] font-black text-slate-600 uppercase tracking-widest">
+                            <svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="3" strokeLinecap="round" strokeLinejoin="round"><circle cx="12" cy="12" r="10"></circle><polyline points="12 6 12 12 16 14"></polyline></svg>
+                            {new Date(project.updatedAt).toLocaleDateString('id-ID', { day: 'numeric', month: 'short' })}
+                          </div>
+                          <div className="text-blue-500 font-black text-xs flex items-center gap-2 group-hover:translate-x-1 transition-transform">Lanjutkan</div>
+                        </div>
+                      </div>
+                    </div>
+                  ))}
+                </div>
+              ) : (
+                <div className="py-24 text-center bg-slate-900/20 rounded-[64px] border border-slate-900/50">
+                  <div className="text-8xl mb-8 animate-bounce">📂</div>
+                  <h3 className="text-3xl font-black text-white mb-4">Belum Ada Sesi Tersimpan</h3>
+                  <button onClick={createNewProject} className="bg-blue-600 hover:bg-blue-700 text-white px-10 py-5 rounded-2xl font-black text-xl shadow-2xl">Mulai Konsultasi</button>
+                </div>
+              )}
+            </section>
+          </div>
+        );
+
+      case AppSection.COURSES:
+        return (
+          <div className="max-w-7xl mx-auto px-4 py-20 animate-slide-in">
+            <div className="text-center mb-20 space-y-4">
+              <h2 className="text-6xl font-black text-white tracking-tighter">Kurikulum Masa Depan</h2>
+              <p className="text-slate-400 max-w-2xl mx-auto text-lg font-medium">Dirancang untuk mencetak engineering yang handal di industri.</p>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-10">
+              {COURSES.map(course => <CourseCard key={course.id} course={course} />)}
+            </div>
+          </div>
+        );
+
+      case AppSection.MENTOR:
+        const activeProject = projects.find(p => p.id === activeProjectId);
+        return (
+          <div className="h-[calc(100vh-80px)] w-full p-4 md:p-8 bg-slate-950 flex justify-center overflow-hidden">
+            {activeProject ? (
+              <MentorChat 
+                activeProject={activeProject} 
+                onUpdateProject={updateProjectMessages}
+                onBackToHistory={() => setCurrentSection(AppSection.HOME)}
+                onCreateNew={createNewProject}
+              />
+            ) : (
+              <div className="h-full w-full flex flex-col items-center justify-center text-center p-12 bg-slate-900/50 border border-slate-800 rounded-[48px] max-w-2xl">
+                <div className="text-8xl mb-10">🤖</div>
+                <h3 className="text-3xl font-black text-white mb-6">Sesi Berakhir</h3>
+                <button onClick={() => setCurrentSection(AppSection.HOME)} className="bg-blue-600 text-white px-12 py-5 rounded-2xl font-black text-lg">Kembali ke Dashboard</button>
+              </div>
+            )}
+          </div>
+        );
+
+      default: return null;
+    }
   };
 
   return (
-    <>
+    <div className="min-h-screen bg-slate-950 text-slate-100 flex flex-col selection:bg-blue-600/30 selection:text-blue-200 overflow-x-hidden">
       <Navbar currentSection={currentSection} setSection={setCurrentSection} />
-      {renderContent()}
-    </>
+      <main className="flex-1">{renderSection()}</main>
+      <footer className="border-t border-slate-900/50 py-16 bg-slate-950">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col md:flex-row justify-between items-center gap-10">
+          <div className="flex items-center gap-4 group cursor-pointer" onClick={() => setCurrentSection(AppSection.HOME)}>
+             <div className="w-10 h-10 bg-blue-600 rounded-xl flex items-center justify-center font-black text-xl text-white shadow-xl">B</div>
+             <span className="font-black text-2xl tracking-tighter">Bisa Coding</span>
+          </div>
+          <p className="text-slate-700 text-[10px] font-black uppercase tracking-[0.3em] text-center md:text-left">© 2024 Bisa Coding Architecture Platform</p>
+        </div>
+      </footer>
+    </div>
   );
 };
 
