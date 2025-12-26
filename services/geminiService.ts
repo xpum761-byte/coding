@@ -20,14 +20,29 @@ export const getGeminiMentorStream = async (
   filePart?: FilePart
 ): Promise<void> => {
   try {
-    const apiKey = process.env.API_KEY;
+    // Mengambil API Key dari environment variable
+    let apiKey = '';
+    
+    try {
+      apiKey = process.env.API_KEY || '';
+    } catch (e) {
+      console.warn("Process.env tidak dapat diakses langsung.");
+    }
+
     if (!apiKey) {
-      throw new Error("API Key tidak ditemukan. Silakan konfigurasi API Key Anda.");
+      const errorMsg = `[ERROR] API Key tidak ditemukan. 
+      
+Jika Anda di Vercel:
+1. Pastikan sudah menambah variabel 'API_KEY' di Settings > Environment Variables.
+2. Anda WAJIB melakukan 'Redeploy' setelah menambah variabel tersebut.
+3. Pastikan tidak ada spasi di awal/akhir kunci.`;
+      
+      onComplete(errorMsg);
+      return;
     }
 
     const ai = new GoogleGenAI({ apiKey });
     
-    // Pastikan percakapan dimulai dari 'user' (Syarat mutlak API Gemini)
     const rawContents = history.map(msg => ({
       role: msg.role === 'user' ? 'user' : 'model',
       parts: [{ text: msg.content }]
@@ -41,7 +56,6 @@ export const getGeminiMentorStream = async (
 
     const contents = rawContents.slice(firstUserIndex);
 
-    // Sisipkan file ke pesan user terakhir jika ada
     if (filePart && contents.length > 0) {
       const lastUserMsg = [...contents].reverse().find(c => c.role === 'user');
       if (lastUserMsg) {
@@ -49,7 +63,6 @@ export const getGeminiMentorStream = async (
       }
     }
 
-    // Menggunakan gemini-3-flash-preview untuk respon yang jauh lebih cepat
     const responseStream = await ai.models.generateContentStream({
       model: 'gemini-3-flash-preview',
       contents: contents,
@@ -81,7 +94,12 @@ export const getGeminiMentorStream = async (
     onComplete(fullText, finalSources);
   } catch (error: any) {
     console.error("Gemini Error:", error);
-    const errorMsg = error.message || "Koneksi ke AI gagal.";
+    let errorMsg = error.message || "Koneksi ke AI gagal.";
+    
+    if (errorMsg.includes("403") || errorMsg.includes("API key not valid")) {
+      errorMsg = "API Key Anda tidak valid atau tidak diizinkan. Periksa kembali di Google AI Studio.";
+    }
+    
     onComplete(`[ERROR] Maaf, saya sedang tidak bisa menjawab. ${errorMsg}`);
   }
 };
