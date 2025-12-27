@@ -4,7 +4,7 @@ import { GoogleGenAI } from "@google/genai";
 import { ChatMessage } from "../types";
 
 const SYSTEM_INSTRUCTION = `Anda adalah "Bisa Coding Mentor". 
-Jawablah pertanyaan coding dengan Bahasa Indonesia yang santai, jelas, dan selalu berikan contoh kode lengkap. 
+Jawablah pertanyaan coding dengan Bahasa Indonesia yang jelas, dan akurat dan selalu berikan kode lengkap. 
 Gunakan markdown untuk format jawaban.`;
 
 export interface FilePart {
